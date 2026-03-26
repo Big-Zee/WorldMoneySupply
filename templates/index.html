@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>M2 Money Supply Monitor</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+    }
+
+    header {
+      width: 100%;
+      max-width: 1100px;
+      margin-bottom: 20px;
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #f8fafc;
+      letter-spacing: -0.02em;
+    }
+
+    header p {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+
+    .controls {
+      width: 100%;
+      max-width: 1100px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 12px;
+    }
+
+    .series-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.875rem;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .series-toggle input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #3b82f6;
+      cursor: pointer;
+    }
+
+    .series-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #3b82f6;
+      flex-shrink: 0;
+    }
+
+    button#reset-zoom {
+      padding: 5px 14px;
+      font-size: 0.8rem;
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    button#reset-zoom:hover {
+      background: #334155;
+      color: #e2e8f0;
+    }
+
+    .chart-wrapper {
+      width: 100%;
+      max-width: 1100px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    #chart {
+      width: 100%;
+      height: 480px;
+    }
+
+    #status {
+      width: 100%;
+      max-width: 1100px;
+      margin-top: 10px;
+      font-size: 0.78rem;
+      color: #64748b;
+      text-align: right;
+      min-height: 1.2em;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>M2 Money Supply Monitor</h1>
+  <p>Federal Reserve M2 money stock — seasonally adjusted (FRED: M2SL)</p>
+</header>
+
+<div class="controls">
+  <label class="series-toggle">
+    <input type="checkbox" id="toggle-m2sl" checked />
+    <span class="series-dot"></span>
+    M2SL (USA)
+  </label>
+  <button id="reset-zoom">Reset Zoom</button>
+</div>
+
+<div class="chart-wrapper">
+  <div id="chart"></div>
+</div>
+
+<div id="status"></div>
+
+<script>
+  const chart = echarts.init(document.getElementById('chart'), null, { renderer: 'canvas' });
+
+  const areaGradient = new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+    { offset: 0, color: 'rgba(59,130,246,0.3)' },
+    { offset: 1, color: 'rgba(59,130,246,0.02)' }
+  ]);
+
+  chart.setOption({
+    backgroundColor: 'transparent',
+    grid: { top: 30, right: 24, bottom: 70, left: 72 },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: '#1e293b',
+      borderColor: '#334155',
+      textStyle: { color: '#e2e8f0', fontSize: 12 },
+      formatter(params) {
+        const p = params[0];
+        if (!p) return '';
+        return `<b>${p.axisValue}</b><br/>$${p.data[1].toLocaleString('en-US', {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1
+        })}B`;
+      }
+    },
+    xAxis: {
+      type: 'time',
+      axisLine: { lineStyle: { color: '#334155' } },
+      axisLabel: { color: '#64748b', fontSize: 11 },
+      splitLine: { show: false }
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Billions USD',
+      nameTextStyle: { color: '#64748b', fontSize: 11, padding: [0, 0, 0, -10] },
+      axisLine: { show: false },
+      axisLabel: {
+        color: '#64748b',
+        fontSize: 11,
+        formatter: v => '$' + (v >= 1000 ? (v / 1000).toFixed(0) + 'T' : v + 'B')
+      },
+      splitLine: { lineStyle: { color: '#263044', type: 'dashed' } }
+    },
+    dataZoom: [
+      { type: 'inside', xAxisIndex: 0, filterMode: 'filter' },
+      {
+        type: 'slider',
+        xAxisIndex: 0,
+        filterMode: 'filter',
+        brushSelect: true,
+        height: 30,
+        bottom: 10,
+        fillerColor: 'rgba(59,130,246,0.15)',
+        borderColor: '#334155',
+        handleStyle: { color: '#3b82f6' },
+        textStyle: { color: '#64748b', fontSize: 10 }
+      }
+    ],
+    series: [{
+      name: 'M2SL',
+      type: 'line',
+      data: [],
+      large: true,
+      largeThreshold: 400,
+      animation: false,
+      symbol: 'none',
+      lineStyle: { color: '#3b82f6', width: 1.5 },
+      areaStyle: { color: areaGradient }
+    }]
+  });
+
+  function resetZoom() {
+    chart.dispatchAction({ type: 'dataZoom', start: 0, end: 100 });
+  }
+
+  document.getElementById('reset-zoom').addEventListener('click', resetZoom);
+  chart.getZr().on('dblclick', resetZoom);
+
+  document.getElementById('toggle-m2sl').addEventListener('change', function () {
+    const visible = this.checked;
+    chart.setOption({
+      series: [{
+        lineStyle: { color: '#3b82f6', width: 1.5, opacity: visible ? 1 : 0 },
+        areaStyle: { color: areaGradient, opacity: visible ? 1 : 0 }
+      }]
+    });
+  });
+
+  fetch('/api/data')
+    .then(r => r.json())
+    .then(json => {
+      chart.setOption({ series: [{ data: json.data }] });
+      const dates = json.data.map(r => r[0]).sort();
+      document.getElementById('status').textContent =
+        `${json.data.length} monthly observations · ${dates[0]} – ${dates[dates.length - 1]}`;
+    })
+    .catch(err => {
+      document.getElementById('status').textContent = 'Error loading data: ' + err.message;
+    });
+
+  window.addEventListener('resize', () => chart.resize());
+</script>
+
+</body>
+</html>
