@@ -1,4 +1,4 @@
-"""M2 Money Supply fetcher via FRED API (series M2SL)."""
+"""M2 Money Supply fetcher via FRED API — multi-country."""
 
 import argparse
 import logging
@@ -11,8 +11,21 @@ import requests
 from dotenv import load_dotenv
 
 FRED_API_URL = "https://api.stlouisfed.org/fred/series/observations"
-SERIES_ID = "M2SL"
 DEFAULT_OUTPUT_DIR = "output"
+
+COUNTRIES = {
+    "US": {"name": "United States",  "series_id": "M2SL"},
+    "EZ": {"name": "Euro Area",       "series_id": "MABMM301EZM189S"},
+    "JP": {"name": "Japan",           "series_id": "MABMM301JPM189S"},
+    "GB": {"name": "United Kingdom",  "series_id": "MABMM301GBM189S"},
+    "CA": {"name": "Canada",          "series_id": "MABMM301CAM189S"},
+    "AU": {"name": "Australia",       "series_id": "MABMM301AUM189S"},
+    "KR": {"name": "South Korea",     "series_id": "MABMM301KRM189S"},
+    "ZA": {"name": "South Africa",    "series_id": "MABMM301ZAM189S"},
+    "NO": {"name": "Norway",          "series_id": "MABMM301NOM189S"},
+    "CZ": {"name": "Czech Republic",  "series_id": "MABMM301CZM189S"},
+    "HU": {"name": "Hungary",         "series_id": "MABMM301HUM189S"},
+}
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,45 +35,63 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def fetch_m2_data(api_key: str) -> list[dict]:
-    """Fetch M2 observations from FRED API. Returns list of observation dicts."""
+def fetch_series(api_key: str, series_id: str) -> list[dict]:
+    """Fetch observations for a FRED series. Returns list of observation dicts."""
     params = {
-        "series_id": SERIES_ID,
+        "series_id": series_id,
         "api_key": api_key,
         "file_type": "json",
     }
     response = requests.get(FRED_API_URL, params=params, timeout=30)
     if response.status_code != 200:
         raise RuntimeError(
-            f"FRED API returned HTTP {response.status_code}: {response.text[:200]}"
+            f"FRED API returned HTTP {response.status_code} for {series_id}: {response.text[:200]}"
         )
     return response.json()["observations"]
 
 
-def build_dataframe(observations: list[dict]) -> pd.DataFrame:
-    """Convert FRED observations to a clean DataFrame."""
+def build_dataframe(observations: list[dict], country_code: str, series_id: str) -> pd.DataFrame:
+    """Convert FRED observations to a clean DataFrame with country/series columns."""
     df = pd.DataFrame(observations)[["date", "value"]]
     df = df[df["value"] != "."].copy()
     df["date"] = pd.to_datetime(df["date"])
     df["value"] = df["value"].astype(float)
-    df = df.rename(columns={"value": "m2_billions_usd"})
+    df["country_code"] = country_code
+    df["series_id"] = series_id
+    df = df[["date", "country_code", "series_id", "value"]]
     df = df.sort_values("date").reset_index(drop=True)
     return df
 
 
 def save_csv(df: pd.DataFrame, output_dir: str) -> Path:
-    """Write DataFrame to CSV and return the output path."""
-    out_path = Path(output_dir) / "m2_money_supply.csv"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(out_path, index=False, date_format="%Y-%m-%d")
-    logger.info("Saved %d rows to %s", len(df), out_path)
-    return out_path
+    """Write combined DataFrame to m2_global.csv and US-only slice to m2_money_supply.csv."""
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    global_path = out_dir / "m2_global.csv"
+    df.to_csv(global_path, index=False, date_format="%Y-%m-%d")
+    logger.info("Saved %d rows to %s", len(df), global_path)
+
+    # Backward-compat: keep US-only slice as m2_money_supply.csv
+    us_df = df[df["country_code"] == "US"][["date", "value"]].rename(
+        columns={"value": "m2_billions_usd"}
+    )
+    if not us_df.empty:
+        us_path = out_dir / "m2_money_supply.csv"
+        us_df.to_csv(us_path, index=False, date_format="%Y-%m-%d")
+        logger.info("Saved %d US rows to %s (backward compat)", len(us_df), us_path)
+
+    return global_path
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Fetch M2 money supply data from FRED.")
     parser.add_argument("--api-key", help="FRED API key (overrides FRED_API_KEY env var)")
     parser.add_argument("--output-dir", default=DEFAULT_OUTPUT_DIR, help="Output directory")
+    parser.add_argument(
+        "--countries",
+        help="Comma-separated country codes to fetch (default: all). E.g. US,EZ,JP",
+    )
     args = parser.parse_args()
 
     load_dotenv()
@@ -76,19 +107,37 @@ def main() -> None:
         )
         sys.exit(1)
 
-    try:
-        logger.info("Fetching M2 data from FRED (series: %s)...", SERIES_ID)
-        observations = fetch_m2_data(api_key)
-        logger.info("Retrieved %d raw observations", len(observations))
+    if args.countries:
+        requested = [c.strip().upper() for c in args.countries.split(",")]
+        unknown = [c for c in requested if c not in COUNTRIES]
+        if unknown:
+            logger.error("Unknown country codes: %s. Valid codes: %s", unknown, list(COUNTRIES))
+            sys.exit(1)
+        selected = {c: COUNTRIES[c] for c in requested}
+    else:
+        selected = COUNTRIES
 
-        df = build_dataframe(observations)
-        logger.info("Built DataFrame with %d valid rows (date range: %s to %s)",
-                    len(df), df["date"].min().date(), df["date"].max().date())
+    frames: list[pd.DataFrame] = []
+    for code, meta in selected.items():
+        series_id = meta["series_id"]
+        try:
+            logger.info("Fetching %s (%s, series: %s)...", meta["name"], code, series_id)
+            observations = fetch_series(api_key, series_id)
+            df = build_dataframe(observations, code, series_id)
+            logger.info(
+                "  %s: %d rows, %s to %s",
+                code, len(df), df["date"].min().date(), df["date"].max().date(),
+            )
+            frames.append(df)
+        except Exception as exc:
+            logger.error("Failed to fetch %s: %s", code, exc)
 
-        save_csv(df, args.output_dir)
-    except Exception as exc:
-        logger.error("Failed: %s", exc)
+    if not frames:
+        logger.error("No data fetched. Exiting.")
         sys.exit(1)
+
+    combined = pd.concat(frames, ignore_index=True)
+    save_csv(combined, args.output_dir)
 
 
 if __name__ == "__main__":

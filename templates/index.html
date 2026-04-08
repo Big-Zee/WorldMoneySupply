@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>M2 Money Supply Monitor</title>
+  <title>Global M2 Monitor</title>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -21,7 +21,7 @@
 
     header {
       width: 100%;
-      max-width: 1100px;
+      max-width: 1200px;
       margin-bottom: 20px;
     }
 
@@ -40,40 +40,55 @@
 
     .controls {
       width: 100%;
-      max-width: 1100px;
+      max-width: 1200px;
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
-      gap: 20px;
+      gap: 10px 16px;
       margin-bottom: 12px;
+    }
+
+    .toggles-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      align-items: center;
+      flex: 1;
     }
 
     .series-toggle {
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 0.875rem;
+      gap: 6px;
+      font-size: 0.8rem;
       cursor: pointer;
       user-select: none;
+      white-space: nowrap;
     }
 
     .series-toggle input[type="checkbox"] {
-      width: 16px;
-      height: 16px;
-      accent-color: #3b82f6;
+      width: 14px;
+      height: 14px;
       cursor: pointer;
     }
 
     .series-dot {
-      width: 12px;
-      height: 12px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
-      background: #3b82f6;
       flex-shrink: 0;
     }
 
-    button#reset-zoom {
-      padding: 5px 14px;
-      font-size: 0.8rem;
+    .btn-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    button {
+      padding: 5px 12px;
+      font-size: 0.78rem;
       background: #1e293b;
       color: #94a3b8;
       border: 1px solid #334155;
@@ -82,14 +97,14 @@
       transition: background 0.15s, color 0.15s;
     }
 
-    button#reset-zoom:hover {
+    button:hover {
       background: #334155;
       color: #e2e8f0;
     }
 
     .chart-wrapper {
       width: 100%;
-      max-width: 1100px;
+      max-width: 1200px;
       background: #1e293b;
       border: 1px solid #334155;
       border-radius: 12px;
@@ -98,12 +113,12 @@
 
     #chart {
       width: 100%;
-      height: 480px;
+      height: 500px;
     }
 
     #status {
       width: 100%;
-      max-width: 1100px;
+      max-width: 1200px;
       margin-top: 10px;
       font-size: 0.78rem;
       color: #64748b;
@@ -115,17 +130,18 @@
 <body>
 
 <header>
-  <h1>M2 Money Supply Monitor</h1>
-  <p>Federal Reserve M2 money stock — seasonally adjusted (FRED: M2SL)</p>
+  <h1>Global M2 Monitor</h1>
+  <p>Broad money supply — year-over-year % change · 11 countries via FRED</p>
 </header>
 
 <div class="controls">
-  <label class="series-toggle">
-    <input type="checkbox" id="toggle-m2sl" checked />
-    <span class="series-dot"></span>
-    M2SL (USA)
-  </label>
-  <button id="reset-zoom">Reset Zoom</button>
+  <div class="toggles-row" id="toggles-row">
+    <!-- populated by JS -->
+  </div>
+  <div class="btn-group">
+    <button id="select-all">Select All</button>
+    <button id="reset-zoom">Reset Zoom</button>
+  </div>
 </div>
 
 <div class="chart-wrapper">
@@ -135,12 +151,12 @@
 <div id="status"></div>
 
 <script>
-  const chart = echarts.init(document.getElementById('chart'), null, { renderer: 'canvas' });
+  const COLORS = {
+    US: '#3b82f6', EZ: '#f59e0b', JP: '#ef4444', GB: '#8b5cf6', CA: '#10b981',
+    AU: '#f97316', KR: '#06b6d4', ZA: '#84cc16', NO: '#e879f9', CZ: '#fb7185', HU: '#fbbf24'
+  };
 
-  const areaGradient = new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-    { offset: 0, color: 'rgba(59,130,246,0.3)' },
-    { offset: 1, color: 'rgba(59,130,246,0.02)' }
-  ]);
+  const chart = echarts.init(document.getElementById('chart'), null, { renderer: 'canvas' });
 
   chart.setOption({
     backgroundColor: 'transparent',
@@ -151,12 +167,19 @@
       borderColor: '#334155',
       textStyle: { color: '#e2e8f0', fontSize: 12 },
       formatter(params) {
-        const p = params[0];
-        if (!p) return '';
-        return `<b>${p.axisValue}</b><br/>$${p.data[1].toLocaleString('en-US', {
-          minimumFractionDigits: 1,
-          maximumFractionDigits: 1
-        })}B`;
+        if (!params.length) return '';
+        const date = new Date(params[0].axisValue)
+          .toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+        const lines = params
+          .filter(p => p.data != null)
+          .sort((a, b) => b.data[1] - a.data[1])
+          .map(p => {
+            const val = p.data[1];
+            const sign = val >= 0 ? '+' : '';
+            return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:5px;"></span>`
+              + `${p.seriesName}: <b>${sign}${val.toFixed(1)}%</b>`;
+          });
+        return `<b>${date}</b><br/>${lines.join('<br/>')}`;
       }
     },
     xAxis: {
@@ -167,13 +190,13 @@
     },
     yAxis: {
       type: 'value',
-      name: 'Billions USD',
+      name: 'YoY % Change',
       nameTextStyle: { color: '#64748b', fontSize: 11, padding: [0, 0, 0, -10] },
       axisLine: { show: false },
       axisLabel: {
         color: '#64748b',
         fontSize: 11,
-        formatter: v => '$' + (v >= 1000 ? (v / 1000).toFixed(0) + 'T' : v + 'B')
+        formatter: v => v.toFixed(1) + '%'
       },
       splitLine: { lineStyle: { color: '#263044', type: 'dashed' } }
     },
@@ -192,17 +215,7 @@
         textStyle: { color: '#64748b', fontSize: 10 }
       }
     ],
-    series: [{
-      name: 'M2SL',
-      type: 'line',
-      data: [],
-      large: true,
-      largeThreshold: 400,
-      animation: false,
-      symbol: 'none',
-      lineStyle: { color: '#3b82f6', width: 1.5 },
-      areaStyle: { color: areaGradient }
-    }]
+    series: []
   });
 
   function resetZoom() {
@@ -212,23 +225,93 @@
   document.getElementById('reset-zoom').addEventListener('click', resetZoom);
   chart.getZr().on('dblclick', resetZoom);
 
-  document.getElementById('toggle-m2sl').addEventListener('change', function () {
-    const visible = this.checked;
-    chart.setOption({
-      series: [{
-        lineStyle: { color: '#3b82f6', width: 1.5, opacity: visible ? 1 : 0 },
-        areaStyle: { color: areaGradient, opacity: visible ? 1 : 0 }
-      }]
+  // Select All / Deselect All toggle
+  let allSelected = true;
+  document.getElementById('select-all').addEventListener('click', function () {
+    allSelected = !allSelected;
+    this.textContent = allSelected ? 'Select All' : 'Deselect All';
+    document.querySelectorAll('.series-toggle input[type="checkbox"]').forEach(cb => {
+      cb.checked = allSelected;
+      cb.dispatchEvent(new Event('change'));
     });
   });
+
+  function buildToggle(code, name, color) {
+    const label = document.createElement('label');
+    label.className = 'series-toggle';
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = `toggle-${code}`;
+    cb.checked = true;
+    cb.style.accentColor = color;
+
+    const dot = document.createElement('span');
+    dot.className = 'series-dot';
+    dot.style.background = color;
+
+    label.appendChild(cb);
+    label.appendChild(dot);
+    label.appendChild(document.createTextNode(` ${name} (${code})`));
+
+    cb.addEventListener('change', function () {
+      const visible = this.checked;
+      chart.setOption({
+        series: [{ name: code, lineStyle: { opacity: visible ? 1 : 0 } }]
+      });
+    });
+
+    return label;
+  }
 
   fetch('/api/data')
     .then(r => r.json())
     .then(json => {
-      chart.setOption({ series: [{ data: json.data }] });
-      const dates = json.data.map(r => r[0]).sort();
+      if (json.error) {
+        document.getElementById('status').textContent = json.error;
+        return;
+      }
+
+      const togglesRow = document.getElementById('toggles-row');
+      const seriesOpts = json.countries.map(c => {
+        const color = COLORS[c.code] || '#94a3b8';
+        togglesRow.appendChild(buildToggle(c.code, c.name, color));
+        return {
+          name: c.code,
+          type: 'line',
+          color,
+          data: c.data,
+          large: true,
+          animation: false,
+          symbol: 'none',
+          lineStyle: { color, width: 1.5 },
+          markLine: c.code === 'US' ? {
+            silent: true,
+            symbol: 'none',
+            data: [{ yAxis: 0 }],
+            lineStyle: { color: '#475569', type: 'dashed', width: 1 },
+            label: { show: false }
+          } : undefined
+        };
+      });
+
+      // Add a shared zero reference line on yAxis via the first series
+      chart.setOption({
+        yAxis: {
+          splitArea: { show: false },
+          axisLine: {
+            show: true,
+            lineStyle: { color: '#334155' }
+          }
+        },
+        series: seriesOpts
+      });
+
+      // Determine status bar info
+      const allDates = json.countries.flatMap(c => c.data.map(d => d[0]));
+      const latestDate = allDates.sort().at(-1) || '';
       document.getElementById('status').textContent =
-        `${json.data.length} monthly observations · ${dates[0]} – ${dates[dates.length - 1]}`;
+        `${json.countries.length} countries · latest data: ${latestDate}`;
     })
     .catch(err => {
       document.getElementById('status').textContent = 'Error loading data: ' + err.message;
