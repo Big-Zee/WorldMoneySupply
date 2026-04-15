@@ -155,6 +155,38 @@
       width: 100%;
       height: 270px;
     }
+
+    .stats-section {
+      width: 100%;
+      max-width: 1200px;
+      margin-top: 12px;
+    }
+
+    #stats-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      color: #e2e8f0;
+    }
+
+    #stats-table th {
+      text-align: left;
+      padding: 6px 10px;
+      color: #64748b;
+      font-weight: 500;
+      border-bottom: 1px solid #334155;
+    }
+
+    #stats-table td {
+      padding: 5px 10px;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    #stats-table tr:hover td { background: #1e293b; }
+
+    .trend-up   { color: #4ade80; }
+    .trend-down { color: #f87171; }
+    .trend-flat { color: #64748b; }
   </style>
 </head>
 <body>
@@ -171,6 +203,7 @@
   <div class="btn-group">
     <button id="select-all">Select All</button>
     <button id="toggle-ma12">MA12</button>
+    <button id="toggle-index">Index</button>
     <button id="range-5y">5Y</button>
     <button id="range-10y">10Y</button>
     <button id="range-20y">20Y</button>
@@ -186,6 +219,20 @@
 <p class="accel-label">M2 Acceleration &mdash; &Delta; YoY % / month</p>
 <div class="chart-wrapper-accel">
   <div id="accel-chart"></div>
+</div>
+
+<div class="stats-section" id="stats-section">
+  <table id="stats-table">
+    <thead>
+      <tr>
+        <th>Country</th>
+        <th>Latest YoY %</th>
+        <th>3M Change</th>
+        <th>Trend</th>
+      </tr>
+    </thead>
+    <tbody id="stats-body"></tbody>
+  </table>
 </div>
 
 <div id="status"></div>
@@ -215,6 +262,61 @@
       if (i === 0 || d[1] == null || data[i-1][1] == null) return [d[0], null];
       return [d[0], d[1] - data[i-1][1]];
     });
+  }
+
+  const rawData = {};
+
+  function indexedSeries(rawArr, baseDate) {
+    const baseIdx = rawArr.findIndex(d => d[0] >= baseDate);
+    if (baseIdx === -1) return rawArr.map(d => [d[0], null]);
+    const baseVal = rawArr[baseIdx][1];
+    if (!baseVal) return rawArr.map(d => [d[0], null]);
+    return rawArr.map(d => [d[0], d[1] != null ? parseFloat(((d[1] / baseVal) * 100).toFixed(2)) : null]);
+  }
+
+  function getZoomRange() {
+    const dz = chart.getOption().dataZoom?.[0];
+    if (!dz) return [-Infinity, Infinity];
+    const startMs = dz.startValue ?? -Infinity;
+    const endMs = dz.endValue ?? Infinity;
+    return [startMs, endMs];
+  }
+
+  function buildStatsTable(startMs, endMs) {
+    const rows = [];
+    if (typeof json === 'undefined') return;
+    json.countries.forEach(c => {
+      const visible = c.data.filter(d => {
+        const t = new Date(d[0]).getTime();
+        return t >= startMs && t <= endMs && d[1] != null;
+      });
+      if (!visible.length) return;
+
+      const latest = visible[visible.length - 1][1];
+      const ago3 = visible.length >= 3 ? visible[visible.length - 3][1] : null;
+      const delta = ago3 != null ? latest - ago3 : null;
+      const arrow = delta == null ? '—'
+        : delta > 0.1 ? '↑' : delta < -0.1 ? '↓' : '→';
+      const arrowClass = delta == null ? 'trend-flat'
+        : delta > 0.1 ? 'trend-up' : delta < -0.1 ? 'trend-down' : 'trend-flat';
+      const sign = latest >= 0 ? '+' : '';
+      const deltaSign = delta != null ? (delta >= 0 ? '+' : '') : '';
+
+      rows.push({ code: c.code, name: c.name, latest, delta, arrow, arrowClass, sign, deltaSign });
+    });
+
+    rows.sort((a, b) => b.latest - a.latest);
+
+    const tbody = document.getElementById('stats-body');
+    tbody.innerHTML = rows.map(r => {
+      const color = COLORS[r.code] || '#94a3b8';
+      return `<tr>
+        <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:6px;"></span>${r.code}</td>
+        <td>${r.sign}${r.latest.toFixed(2)}%</td>
+        <td>${r.delta != null ? r.deltaSign + r.delta.toFixed(2) + '%' : '—'}</td>
+        <td class="${r.arrowClass}">${r.arrow}</td>
+      </tr>`;
+    }).join('');
   }
 
   const chart = echarts.init(document.getElementById('chart'), null, { renderer: 'canvas' });
@@ -406,9 +508,43 @@
     ['2020-02-01', '2020-04-01'],
   ];
 
+  let json;
+  let indexActive = false;
+
+  function applyIndexMode() {
+    const dz = chart.getOption().dataZoom[0];
+    let baseDate;
+    if (dz.startValue != null) {
+      baseDate = new Date(dz.startValue).toISOString().slice(0, 10);
+    } else {
+      const firstCode = Object.keys(rawData)[0];
+      baseDate = rawData[firstCode]?.[0]?.[0] ?? '1960-01-01';
+    }
+
+    json.countries.forEach(c => {
+      const seriesData = indexActive
+        ? indexedSeries(rawData[c.code], baseDate)
+        : c.data;
+      chart.setOption({ series: [{ name: c.code, data: seriesData }] });
+    });
+
+    if (indexActive) {
+      chart.setOption({ yAxis: { name: 'Index\n(start=100)', axisLabel: { formatter: v => v.toFixed(0) } } });
+    } else {
+      chart.setOption({ yAxis: { name: 'YoY % Change', axisLabel: { formatter: v => v.toFixed(1) + '%' } } });
+    }
+  }
+
+  document.getElementById('toggle-index').addEventListener('click', function () {
+    indexActive = !indexActive;
+    this.classList.toggle('btn-active', indexActive);
+    applyIndexMode();
+  });
+
   fetch('/api/data')
     .then(r => r.json())
-    .then(json => {
+    .then(_json => {
+      json = _json;
       if (json.error) {
         document.getElementById('status').textContent = json.error;
         return;
@@ -420,6 +556,7 @@
       const accelSeriesOpts = [];
 
       json.countries.forEach(c => {
+        rawData[c.code] = c.raw || [];
         const color = COLORS[c.code] || '#94a3b8';
         togglesRow.appendChild(buildToggle(c.code, c.name, color));
 
@@ -502,6 +639,17 @@
           axisLine: { show: true, lineStyle: { color: '#334155' } }
         },
         series: [...accelSeriesOpts, mkRecession(zeroLine)]
+      });
+
+      // Initial stats table render
+      const [initS, initE] = getZoomRange();
+      buildStatsTable(initS, initE);
+
+      // Update stats table and index on zoom
+      chart.on('datazoom', () => {
+        const [s, e] = getZoomRange();
+        buildStatsTable(s, e);
+        if (indexActive) applyIndexMode();
       });
 
       // Date range preset buttons
