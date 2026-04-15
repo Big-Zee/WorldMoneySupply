@@ -1,24 +1,25 @@
 # WorldMoneySupply
 
-Fetches broad M2 money supply data for **11 countries** from the
-[FRED API](https://fred.stlouisfed.org/) and visualizes them as
-**year-over-year % change** on a single interactive chart.
+Fetches broad M2 money supply data for **11 countries** and visualizes them as
+**year-over-year % change** on a single interactive chart. Most countries are
+sourced from the [FRED API](https://fred.stlouisfed.org/); Euro Area data comes
+directly from the [ECB REST API](https://data-api.ecb.europa.eu/) (no API key required).
 
 ## Countries
 
-| Code | Name           | FRED Series ID         |
-|------|----------------|------------------------|
-| US   | United States  | M2SL                   |
-| EZ   | Euro Area      | MABMM301EZM189S        |
-| JP   | Japan          | MABMM301JPM189S        |
-| GB   | United Kingdom | MABMM301GBM189S        |
-| CA   | Canada         | MABMM301CAM189S        |
-| AU   | Australia      | MABMM301AUM189S        |
-| KR   | South Korea    | MABMM301KRM189S        |
-| ZA   | South Africa   | MABMM301ZAM189S        |
-| NO   | Norway         | MABMM301NOM189S        |
-| CZ   | Czech Republic | MABMM301CZM189S        |
-| HU   | Hungary        | MABMM301HUM189S        |
+| Code | Name           | Source | Series ID                              |
+|------|----------------|--------|----------------------------------------|
+| US   | United States  | FRED   | M2SL                                   |
+| EZ   | Euro Area      | ECB    | BSI.M.U2.Y.V.M20.X.1.U2.2300.Z01.E    |
+| JP   | Japan          | FRED   | MABMM301JPM189S                        |
+| GB   | United Kingdom | FRED   | MABMM301GBM189S                        |
+| CA   | Canada         | FRED   | MABMM301CAM189S                        |
+| AU   | Australia      | FRED   | MABMM301AUM189S                        |
+| KR   | South Korea    | FRED   | MABMM301KRM189S                        |
+| ZA   | South Africa   | FRED   | MABMM301ZAM189S                        |
+| NO   | Norway         | FRED   | MABMM301NOM189S                        |
+| CZ   | Czech Republic | FRED   | MABMM301CZM189S                        |
+| HU   | Hungary        | FRED   | MABMM301HUM189S                        |
 
 ## API Key Setup
 
@@ -40,8 +41,12 @@ pip install -r requirements.txt
 python scraper.py
 ```
 
-Output is written to `output/m2_global.csv` (all 11 countries, ~8 000+ rows).
-`output/m2_money_supply.csv` (US-only) is also kept for backward compatibility.
+Each country is written to its own file: `output/{CODE}_m2_money_supply.csv`
+(e.g. `US_m2_money_supply.csv`, `EZ_m2_money_supply.csv`). A combined
+`output/m2_global.csv` is also written as a convenience artifact.
+
+Partial runs are safe — fetching `--countries EZ` only touches `EZ_m2_money_supply.csv`
+and `m2_global.csv`; all other per-country files are left intact.
 
 Optional flags:
 
@@ -55,15 +60,17 @@ Optional flags:
 
 ```bash
 python -c "
-import pandas as pd
-df = pd.read_csv('output/m2_global.csv')
+import pandas as pd, glob
+files = sorted(glob.glob('output/*_m2_money_supply.csv'))
+print('Per-country files:', [f.split('/')[-1] for f in files])
+df = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
 print(df.info())
 print('Countries:', sorted(df['country_code'].unique()))
 print(df.groupby('country_code')['date'].agg(['min','max','count']))
 "
 ```
 
-Expected: 8 000+ rows, 11 unique `country_code` values, dates from ~1959 onward.
+Expected: 11 per-country files, 8 000+ rows total, dates from ~1959 onward.
 
 ## Web UI
 
