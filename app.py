@@ -9,6 +9,26 @@ from fastapi.requests import Request
 BASE_DIR = Path(__file__).parent
 CSV_PATH = BASE_DIR / "output" / "m2_global.csv"
 CSV_PATH_FALLBACK = BASE_DIR / "output" / "m2_money_supply.csv"
+OUTPUT_DIR = BASE_DIR / "output"
+
+
+def load_data() -> pd.DataFrame | None:
+    """Load all per-country CSVs; fall back to m2_global.csv or legacy US-only file."""
+    per_country = sorted(OUTPUT_DIR.glob("*_m2_money_supply.csv"))
+    if per_country:
+        return pd.concat(
+            [pd.read_csv(p, parse_dates=["date"]) for p in per_country],
+            ignore_index=True,
+        )
+    if CSV_PATH.exists():
+        return pd.read_csv(CSV_PATH, parse_dates=["date"])
+    if CSV_PATH_FALLBACK.exists():
+        df = pd.read_csv(CSV_PATH_FALLBACK, parse_dates=["date"])
+        df = df.rename(columns={"m2_billions_usd": "value"})
+        df["country_code"] = "US"
+        df["series_id"] = "M2SL"
+        return df
+    return None
 
 COUNTRY_NAMES = {
     "US": "United States",
@@ -35,18 +55,14 @@ async def index(request: Request):
 
 @app.get("/api/data")
 async def get_data():
-    if CSV_PATH.exists():
-        df = pd.read_csv(CSV_PATH, parse_dates=["date"])
-    elif CSV_PATH_FALLBACK.exists():
-        # Backward compat: wrap legacy US-only CSV in the new schema
-        df = pd.read_csv(CSV_PATH_FALLBACK, parse_dates=["date"])
-        df = df.rename(columns={"m2_billions_usd": "value"})
-        df["country_code"] = "US"
-        df["series_id"] = "M2SL"
-    else:
-        return JSONResponse(content={"error": "No data file found. Run scraper.py first."}, status_code=404)
+    raw_df = load_data()
+    if raw_df is None:
+        return JSONResponse(
+            content={"error": "No data file found. Run scraper.py first."}, status_code=404
+        )
 
-    df = df.sort_values(["country_code", "date"])
+    raw_df = raw_df.sort_values(["country_code", "date"])
+    df = raw_df.copy()
     df["yoy_pct"] = df.groupby("country_code")["value"].pct_change(12) * 100
     df = df.dropna(subset=["yoy_pct"])
 
@@ -57,11 +73,17 @@ async def get_data():
             group["date"].dt.strftime("%Y-%m-%d").tolist(),
             group["yoy_pct"].round(2).tolist(),
         ))
+        raw_grp = raw_df[raw_df["country_code"] == code].dropna(subset=["value"])
+        raw_data = [
+            [row["date"].strftime("%Y-%m-%d"), round(float(row["value"]), 2)]
+            for _, row in raw_grp[["date", "value"]].iterrows()
+        ]
         countries.append({
             "code": code,
             "name": COUNTRY_NAMES.get(code, code),
             "series_id": series_id,
             "data": data,
+            "raw": raw_data,
         })
 
     return JSONResponse(content={"mode": "yoy_pct_change", "countries": countries})
