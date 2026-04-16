@@ -3,6 +3,9 @@
 FRED is used for most countries. Euro Area (EZ) is sourced directly from the
 ECB public REST API (no API key required), which is updated monthly and current
 through early 2026.
+
+Japan (JP) is intentionally excluded — use BOJDownloadSeries.py instead,
+which fetches directly from the Bank of Japan API.
 """
 import argparse
 import logging
@@ -31,7 +34,7 @@ DEFAULT_OUTPUT_DIR = "output"
 COUNTRIES = {
     "US": {"name": "United States",  "series_id": "M2SL"},
     "EZ": {"name": "Euro Area",       "series_id": "MABMM301EZM189S"},
-    "JP": {"name": "Japan",           "series_id": "MABMM301JPM189S"},
+    # JP is fetched via BOJDownloadSeries.py (Bank of Japan API)
     "GB": {"name": "United Kingdom",  "series_id": "MABMM301GBM189S"},
     "CA": {"name": "Canada",          "series_id": "MABMM301CAM189S"},
     "AU": {"name": "Australia",       "series_id": "MABMM301AUM189S"},
