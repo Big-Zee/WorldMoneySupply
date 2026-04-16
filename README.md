@@ -3,23 +3,24 @@
 Fetches broad M2 money supply data for **11 countries** and visualizes them as
 **year-over-year % change** on a single interactive chart. Most countries are
 sourced from the [FRED API](https://fred.stlouisfed.org/); Euro Area data comes
-directly from the [ECB REST API](https://data-api.ecb.europa.eu/) (no API key required).
+directly from the [ECB REST API](https://data-api.ecb.europa.eu/) (no API key required);
+Japan data comes directly from the [Bank of Japan API](https://www.stat-search.boj.or.jp/) (no API key required).
 
 ## Countries
 
-| Code | Name           | Source | Series ID                              |
-|------|----------------|--------|----------------------------------------|
-| US   | United States  | FRED   | M2SL                                   |
-| EZ   | Euro Area      | ECB    | BSI.M.U2.Y.V.M20.X.1.U2.2300.Z01.E    |
-| JP   | Japan          | FRED   | MABMM301JPM189S                        |
-| GB   | United Kingdom | FRED   | MABMM301GBM189S                        |
-| CA   | Canada         | FRED   | MABMM301CAM189S                        |
-| AU   | Australia      | FRED   | MABMM301AUM189S                        |
-| KR   | South Korea    | FRED   | MABMM301KRM189S                        |
-| ZA   | South Africa   | FRED   | MABMM301ZAM189S                        |
-| NO   | Norway         | FRED   | MABMM301NOM189S                        |
-| CZ   | Czech Republic | FRED   | MABMM301CZM189S                        |
-| HU   | Hungary        | FRED   | MABMM301HUM189S                        |
+| Code | Name           | Source | Series ID                              | Script                  |
+|------|----------------|--------|----------------------------------------|-------------------------|
+| US   | United States  | FRED   | M2SL                                   | scraper.py              |
+| EZ   | Euro Area      | ECB    | BSI.M.U2.Y.V.M20.X.1.U2.2300.Z01.E    | scraper.py              |
+| JP   | Japan          | BOJ    | MAM1NAM2M2MO                           | BOJDownloadSeries.py    |
+| GB   | United Kingdom | FRED   | MABMM301GBM189S                        | scraper.py              |
+| CA   | Canada         | FRED   | MABMM301CAM189S                        | scraper.py              |
+| AU   | Australia      | FRED   | MABMM301AUM189S                        | scraper.py              |
+| KR   | South Korea    | FRED   | MABMM301KRM189S                        | scraper.py              |
+| ZA   | South Africa   | FRED   | MABMM301ZAM189S                        | scraper.py              |
+| NO   | Norway         | FRED   | MABMM301NOM189S                        | scraper.py              |
+| CZ   | Czech Republic | FRED   | MABMM301CZM189S                        | scraper.py              |
+| HU   | Hungary        | FRED   | MABMM301HUM189S                        | scraper.py              |
 
 ## API Key Setup
 
@@ -37,6 +38,8 @@ pip install -r requirements.txt
 
 ## Run
 
+### All countries except Japan
+
 ```bash
 python scraper.py
 ```
@@ -51,9 +54,26 @@ and `m2_global.csv`; all other per-country files are left intact.
 Optional flags:
 
 ```
---api-key KEY          FRED API key (overrides env var / .env)
---output-dir DIR       Directory to write CSV (default: output)
---countries US,EZ,JP   Fetch only the specified country codes (default: all 11)
+--api-key KEY        FRED API key (overrides env var / .env)
+--output-dir DIR     Directory to write CSV (default: output)
+--countries US,EZ    Fetch only the specified country codes (default: all except JP)
+```
+
+### Japan (BOJ)
+
+Japan is fetched separately from the Bank of Japan API (no API key required):
+
+```bash
+python BOJDownloadSeries.py
+```
+
+Writes to `output/JP_m2_money_supply.csv` in the same schema as all other country files.
+
+Use `BOJDiscoverSeries.py` to browse available BOJ MD02 series and update the
+`M2_CODES` list in `BOJDownloadSeries.py` if the series code needs to change:
+
+```bash
+python BOJDiscoverSeries.py          # prints + saves output/boj_md02_series.csv
 ```
 
 ## Verify
@@ -70,7 +90,7 @@ print(df.groupby('country_code')['date'].agg(['min','max','count']))
 "
 ```
 
-Expected: 11 per-country files, 8 000+ rows total, dates from ~1959 onward.
+Expected: 11 per-country files, 8 000+ rows total, dates from ~1959 onward (JP from ~1970).
 
 ## Web UI
 
