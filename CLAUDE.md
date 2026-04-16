@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Git Operations
+
+The git repository root is `WorldMoneySupply/`. Always run git commands from there (this directory).
+
 ## Commands
 
 ```bash
