@@ -1,4 +1,5 @@
 """FastAPI web server for Global M2 money supply visualization."""
+import json
 from pathlib import Path
 import pandas as pd
 from fastapi import FastAPI
@@ -87,3 +88,21 @@ async def get_data():
         })
 
     return JSONResponse(content={"mode": "yoy_pct_change", "countries": countries})
+
+
+@app.get("/api/scraper-status")
+async def scraper_status():
+    path = BASE_DIR / "output" / "job_status.json"
+    if not path.exists():
+        return JSONResponse(content={"scrapers": []})
+    try:
+        entries = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return JSONResponse(content={"scrapers": []})
+    seen: set[str] = set()
+    latest: list[dict] = []
+    for entry in reversed(entries):
+        if entry["scraper"] not in seen:
+            seen.add(entry["scraper"])
+            latest.append(entry)
+    return JSONResponse(content={"scrapers": latest})

@@ -11,11 +11,14 @@ import argparse
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 
 import pandas as pd
 import requests
 from dotenv import load_dotenv
+
+import job_logger
 
 FRED_API_URL = "https://api.stlouisfed.org/fred/series/observations"
 ECB_API_URL = "https://data-api.ecb.europa.eu/service/data"
@@ -150,6 +153,7 @@ def main() -> None:
     else:
         selected = COUNTRIES
 
+    start = time.time()
     frames: list[pd.DataFrame] = []
     for code, meta in selected.items():
         try:
@@ -174,10 +178,13 @@ def main() -> None:
 
     if not frames:
         logger.error("No data fetched. Exiting.")
+        job_logger.log("ALL", "error", 0, None, time.time() - start, "No data fetched for any country")
         sys.exit(1)
 
     combined = pd.concat(frames, ignore_index=True)
     save_csv(combined, args.output_dir)
+    latest_date = combined["date"].max().strftime("%Y-%m-%d")
+    job_logger.log("ALL", "success", len(combined), latest_date, time.time() - start)
 
 
 if __name__ == "__main__":
