@@ -105,3 +105,59 @@ Open `http://127.0.0.1:8000` — features:
 - Per-country toggle checkboxes + Select All / Deselect All
 - Scroll-wheel zoom, range slider, double-click to reset zoom
 - Tooltip showing all country values for a given date
+
+## Architecture
+
+### Local / development
+
+```
+Data Sources                Scripts                  Output
+────────────────────────    ─────────────────────    ──────────────────────────────
+FRED API (US, GB, CA…)  ──► scraper.py        ──┐
+ECB  API (EZ)           ──► scraper.py        ──┤► output/{CODE}_m2_money_supply.csv
+BOJ  API (JP)           ──► BOJDownloadSeries ──┤► output/m2_global.csv (combined)
+FRED API (US only)      ──► scraper_us.py     ──┘► output/job_status.json (audit log)
+                                                            │
+                                                            ▼
+                                                     app.py (FastAPI)
+                                                     ├── GET /api/data
+                                                     └── GET /api/scraper-status
+                                                            │
+                                                            ▼
+                                                  templates/index.html
+                                                  (ECharts dashboard)
+```
+
+`scraper_us.py` is a self-contained incremental fetcher: if `output/US_m2_money_supply.csv`
+exists it fetches only from the last known date onward; otherwise it performs a full
+historical fetch. Every scraper run appends a result entry to `job_status.json` which
+the dashboard health panel reads via `/api/scraper-status`.
+
+### Azure (planned)
+
+```
+Resource Group: m2-supply-monitor
+│
+├── Storage Account: m2supplystorage
+│   ├── Blob container: m2-data/
+│   │   ├── US_m2_money_supply.csv
+│   │   ├── JP_m2_money_supply.csv
+│   │   └── …
+│   └── Table: ScraperJobStatus
+│       (PartitionKey=scraper, RowKey=timestamp, status, rows_added, …)
+│
+├── Function App: m2-supply-monitor-func    (Consumption plan — free tier)
+│   ├── scraper_us   Timer Trigger  (monthly)
+│   ├── scraper_all  Timer Trigger  (monthly)
+│   ├── scraper_jp   Timer Trigger  (monthly)
+│   ├── api_data     HTTP  Trigger  GET /api/data
+│   └── api_status   HTTP  Trigger  GET /api/scraper-status
+│
+└── Static Web App: m2-supply-monitor-web   (Free tier)
+    └── index.html + ECharts  →  calls Function App HTTP endpoints
+```
+
+GitHub Actions deploys on push to `main` using a Service Principal scoped to this
+Resource Group — GitHub identity and Azure identity remain independent.
+When `AZURE_STORAGE_CONNECTION_STRING` is set, `job_logger.py` writes audit entries
+to Table Storage in addition to the local `job_status.json`.
