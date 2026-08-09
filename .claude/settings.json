@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'code_changed=$(git diff --name-only HEAD 2>/dev/null | grep -E \"\\.(py|html)$\"); changelog_changed=$(git diff --name-only HEAD 2>/dev/null | grep CHANGELOG.md); if [ -n \"$code_changed\" ] && [ -z \"$changelog_changed\" ]; then echo \"REMINDER: Code files were modified but CHANGELOG.md was not updated. Add an entry under [Unreleased] before committing.\"; fi'"
+          }
+        ]
+      }
+    ]
+  }
+}

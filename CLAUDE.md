@@ -45,3 +45,12 @@ The project has two data collection paths that both write to `output/`:
 **Web UI (`app.py`)** — FastAPI server that reads `output/*_m2_money_supply.csv` at request time (no caching). `load_data()` globs all per-country files; falls back to `m2_global.csv` then a legacy US-only file. `/api/data` computes YoY % change via `pct_change(12)` on monthly data and returns both raw values and YoY series per country. The chart is rendered client-side by ECharts in `templates/index.html`.
 
 **Adding a new country** — add an entry to `COUNTRIES` in `scraper.py` with its FRED series ID. If the source is not FRED, add an override in `ECB_OVERRIDES` (or create a dedicated script like `BOJDownloadSeries.py`) and add the country code to `COUNTRY_NAMES` in `app.py`.
+
+## Changelog
+
+Always update `CHANGELOG.md` before committing any code change.
+
+- New entries go at the **top** of the file, under `## [Unreleased]`
+- Use subsections: `### Added`, `### Changed`, `### Fixed`, `### Removed`
+- One bullet per logical change, plain English (no implementation detail or file paths)
+- When a version is released/tagged, rename `[Unreleased]` to the release date `[YYYY-MM-DD]` and add a fresh `## [Unreleased]` above it
