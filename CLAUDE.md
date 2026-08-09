@@ -37,17 +37,19 @@ Required for `scraper.py`. Supply via `.env` file (`FRED_API_KEY=your_key`), env
 
 ## Architecture
 
-The project has two data collection paths that both write to `output/`:
+Three data collection paths all write to `output/`:
 
-**FRED/ECB path (`scraper.py`)** — fetches 10 countries. Euro Area (EZ) is overridden to use the ECB REST API instead of FRED (see `ECB_OVERRIDES` dict). All other countries use FRED. Output: `output/{CODE}_m2_money_supply.csv` per country + `output/m2_global.csv` (combined).
+**FRED/ECB path (`scraper.py`)** — fetches 9 countries (US, EZ, GB, CA, AU, KR, ZA, NO, HU). Euro Area (EZ) is overridden to use the ECB REST API instead of FRED (see `ECB_OVERRIDES` dict). All others use FRED. Output: `output/{CODE}_m2_money_supply.csv` per country + `output/m2_global.csv` (combined).
 
-**BOJ path (`BOJDownloadSeries.py`)** — fetches Japan only from the Bank of Japan MD02 database. Writes `output/JP_m2_money_supply.csv` in the same schema. `BOJDiscoverSeries.py` is a helper to browse available series and find the right series code.
+**BOJ path (`BOJDownloadSeries.py`)** — fetches Japan only from the Bank of Japan MD02 database. Writes `output/JP_m2_money_supply.csv` in the same schema. `BOJDiscoverSeries.py` is a helper to browse available series.
+
+**CNB path (`cnb_cz.py`)** — fetches Czech Republic from the Czech National Bank. FRED stopped publishing CZ after 2023-11. The script merges three sources in priority order: existing CSV (FRED history pre-2002) → `data/CZ_ARAD_SMV5M106.csv` (CNB/ARAD static export 2002-2026) → live CNB rolling feed (latest 13 months). CNB values are in millions of CZK and are multiplied by 1,000,000 to match the raw-CZK convention used by FRED data.
 
 **CSV schema** (all files): `date, country_code, series_id, value` — dates as `YYYY-MM-01`, values as float in native currency units.
 
 **Web UI (`app.py`)** — FastAPI server that reads `output/*_m2_money_supply.csv` at request time (no caching). `load_data()` globs all per-country files; falls back to `m2_global.csv` then a legacy US-only file. `/api/data` computes YoY % change via `pct_change(12)` on monthly data and returns both raw values and YoY series per country. The chart is rendered client-side by ECharts in `templates/index.html`.
 
-**Adding a new country** — add an entry to `COUNTRIES` in `scraper.py` with its FRED series ID. If the source is not FRED, add an override in `ECB_OVERRIDES` (or create a dedicated script like `BOJDownloadSeries.py`) and add the country code to `COUNTRY_NAMES` in `app.py`.
+**Adding a new country** — if FRED has the series: add an entry to `COUNTRIES` in `scraper.py` and the country code to `COUNTRY_NAMES` in `app.py`. If the source is not FRED, create a dedicated script (see `BOJDownloadSeries.py` or `cnb_cz.py` as patterns) and add to `COUNTRY_NAMES` in `app.py`.
 
 ## Changelog
 
