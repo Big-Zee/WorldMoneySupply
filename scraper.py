@@ -44,7 +44,7 @@ COUNTRIES = {
     "KR": {"name": "South Korea",     "series_id": "MABMM301KRM189S"},
     "ZA": {"name": "South Africa",    "series_id": "MABMM301ZAM189S"},
     "NO": {"name": "Norway",          "series_id": "MABMM301NOM189S"},
-    "CZ": {"name": "Czech Republic",  "series_id": "MABMM301CZM189S"},
+    # CZ removed from FRED after 2023-11. Use cnb_cz.py for Czech M2.
     "HU": {"name": "Hungary",         "series_id": "MABMM301HUM189S"},
 }
 

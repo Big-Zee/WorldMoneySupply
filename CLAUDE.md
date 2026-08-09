@@ -21,6 +21,9 @@ python scraper.py --countries US,EZ,GB
 # Fetch Japan M2 data from Bank of Japan (no API key required)
 python BOJDownloadSeries.py
 
+# Fetch CZ M2 data from Czech National Bank (FRED stopped Nov 2023)
+python cnb_cz.py
+
 # Discover available BOJ series (saves output/boj_md02_series.csv)
 python BOJDiscoverSeries.py
 

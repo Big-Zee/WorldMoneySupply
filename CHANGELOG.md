@@ -7,6 +7,13 @@ Newest entries appear at the top.
 
 ## [Unreleased]
 
+### Added
+- `cnb_cz.py` — Czech M2 updater that merges FRED historical data (1991-2001), CNB/ARAD static export (2002-2026), and the CNB live rolling feed into a single gap-free CSV
+- `data/CZ_ARAD_SMV5M106.csv` — manually downloaded CNB/ARAD reference data used as bootstrap for the CZ pipeline
+
+### Changed
+- Removed CZ from `scraper.py` FRED fetch (FRED stopped updating after 2023-11); CZ is now maintained by `cnb_cz.py`
+
 ## [2026-08-08]
 
 ### Changed
