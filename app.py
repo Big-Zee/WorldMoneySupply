@@ -43,6 +43,7 @@ COUNTRY_NAMES = {
     "NO": "Norway",
     "CZ": "Czech Republic",
     "HU": "Hungary",
+    "CN": "China",
 }
 
 app = FastAPI(title="Global M2 Monitor")

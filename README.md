@@ -1,6 +1,6 @@
 # WorldMoneySupply
 
-Fetches broad M2 money supply data for **11 countries** and visualizes them as
+Fetches broad M2 money supply data for **12 countries** and visualizes them as
 **year-over-year % change** on a single interactive chart. Most countries are
 sourced from the [FRED API](https://fred.stlouisfed.org/); Euro Area data comes
 directly from the [ECB REST API](https://data-api.ecb.europa.eu/) (no API key required);
@@ -21,6 +21,15 @@ Japan data comes directly from the [Bank of Japan API](https://www.stat-search.b
 | NO   | Norway         | FRED   | MABMM301NOM189S                        | scraper.py              |
 | CZ   | Czech Republic | FRED   | MABMM301CZM189S                        | scraper.py              |
 | HU   | Hungary        | FRED   | MABMM301HUM189S                        | scraper.py              |
+| CN   | China          | FRED + Manual¹ | MYAGM2CNM189N (–2019-08) / PBOC_M2 (2019-09–) | fred_cn.py |
+
+¹ **China data sources:** FRED series `MYAGM2CNM189N` provides history through 2019-08
+(FRED stopped updating this series). Data from 2019-09 onwards is manually collected
+from the People's Bank of China and stored in `data/CN_m2_money_supply_from2019-09.csv`.
+2026 data was sourced from:
+<https://www.pbc.gov.cn/diaochatongjisi/attachDir/2026/07/2026071515594282024.htm>
+When new months become available, add them to that file and re-run `python fred_cn.py`
+to rebuild `output/CN_m2_money_supply.csv`.
 
 ## API Key Setup
 
@@ -90,7 +99,7 @@ print(df.groupby('country_code')['date'].agg(['min','max','count']))
 "
 ```
 
-Expected: 11 per-country files, 8 000+ rows total, dates from ~1959 onward (JP from ~1970).
+Expected: 12 per-country files, 8 000+ rows total, dates from ~1959 onward (JP from ~1970).
 
 ## Web UI
 

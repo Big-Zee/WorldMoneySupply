@@ -7,6 +7,9 @@ Newest entries appear at the top.
 
 ## [Unreleased]
 
+### Added
+- China (CN) M2 data merged from FRED series MYAGM2CNM189N (history through ~2019-08) and manually collected PBOC data (2019-09 onwards) via `fred_cn.py`
+
 ## [2026-08-09]
 
 ### Added

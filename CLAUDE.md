@@ -24,6 +24,9 @@ python BOJDownloadSeries.py
 # Fetch CZ M2 data from Czech National Bank (FRED stopped Nov 2023)
 python cnb_cz.py
 
+# Build CN M2 CSV from FRED history + manual PBOC data (re-run after adding rows to data/CN_m2_money_supply_from2019-09.csv)
+python fred_cn.py
+
 # Discover available BOJ series (saves output/boj_md02_series.csv)
 python BOJDiscoverSeries.py
 
@@ -44,6 +47,8 @@ Three data collection paths all write to `output/`:
 **BOJ path (`BOJDownloadSeries.py`)** — fetches Japan only from the Bank of Japan MD02 database. Writes `output/JP_m2_money_supply.csv` in the same schema. `BOJDiscoverSeries.py` is a helper to browse available series.
 
 **CNB path (`cnb_cz.py`)** — fetches Czech Republic from the Czech National Bank. FRED stopped publishing CZ after 2023-11. The script merges three sources in priority order: existing CSV (FRED history pre-2002) → `data/CZ_ARAD_SMV5M106.csv` (CNB/ARAD static export 2002-2026) → live CNB rolling feed (latest 13 months). CNB values are in millions of CZK and are multiplied by 1,000,000 to match the raw-CZK convention used by FRED data.
+
+**CN path (`fred_cn.py`)** — builds the China M2 CSV from two sources merged by priority: FRED series `MYAGM2CNM189N` (history through 2019-08; FRED stopped updating after that) and `data/CN_m2_money_supply_from2019-09.csv` (manually collected PBOC data from 2019-09 onwards; 2026 data from https://www.pbc.gov.cn/diaochatongjisi/attachDir/2026/07/2026071515594282024.htm). Manual data wins on any overlapping dates. Re-run whenever new months are appended to the manual file.
 
 **CSV schema** (all files): `date, country_code, series_id, value` — dates as `YYYY-MM-01`, values as float in native currency units.
 
